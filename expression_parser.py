@@ -5,6 +5,10 @@
 
 # Language definition:
 #
+# P = SP'
+# P' = SP' | &
+# S = A | E
+# A = id = E
 # E = TE'
 # E' = +TE' | - TE' | &
 # T = PT'
@@ -96,15 +100,20 @@ class Lexer:
                 while self.id_re.match(char):                    
                     char_concat += char
                     current += 1
-                    char = self.data[current]
+                    char = self.data[current]                  
+                    
                 try:
-                    symbol = self.symbol_table[char_concat] 
+                    symbol = self.symbol_table[char_concat]
                     return (symbol.type, symbol.value, current)
+                        
                 except Exception:
-                    raise Exception(
-                    f"Symbol not defined at {current}: "
-                    f"{self.data[current - 1:current + 10]}"
-                )
+                    new_symbol = Symbol(None, Lexer.IDENTIFIER)
+                    self.symbol_table[char_concat] = new_symbol
+                    return (new_symbol.type, new_symbol.value, current)
+                #     raise Exception(
+                #     f"Symbol not defined at {current}: "
+                #     f"{self.data[current - 1:current + 10]}"
+                # )
                     
             match = self.num_re.match(self.data[current - 1 :])
             if match is None:
@@ -128,6 +137,49 @@ class Lexer:
             self.current = current
             return (token_id, token_value)
         raise StopIteration()
+
+
+def parse_C(data):
+    S = parse_S(data)
+    C_prime = parse_C_prime(data)
+    return S
+
+
+def parse_C_prime(data):
+    S = parse_S(data)
+    C_prime = parse_C_prime(data)
+    return S    
+
+
+def parse_S(data):
+    try:
+        current = data.current
+        token, value = next(data)
+        data.current = current
+    except StopIteration:
+        return False
+    
+    if token not in [Lexer.IDENTIFIER, Lexer.FUNC]:
+        return parse_E(data)
+    else:
+        current = data.current
+        token, value = next(data)
+        data.current = current
+        if value == '=':
+            return parse_A(data, value)
+        else:
+            return parse_E(data)
+
+
+def parse_A(data, id_name):
+    try:
+        token, value = next(data)
+    except StopIteration:
+        return False
+    
+    data.symbol_table[id_name] = parse_E(data)
+    print(data.symbol_table[id_name].value)
+    return True
 
 
 def parse_E(data):
@@ -268,43 +320,44 @@ def parse_F_prime(data):
 def parse(source_code):
     """Parse the source code."""
     lexer = Lexer(source_code)
-    return parse_E(lexer)
+    return parse_S(lexer)
 
 
 if __name__ == "__main__":
     expressions = [
-        ("2 * 3", 2 * 3),
-        ("5 / 4", 5 / 4),
-        ("2 * 3 + 1", 2 * 3 + 1),
-        ("1 + 2 * 3", 1 + 2 * 3),
-        ("(2 * 3) + 1", (2 * 3) + 1),
-        ("2 * (3 + 1)", 2 * (3 + 1)),
-        ("(2 + 1) * 3", (2 + 1) * 3),
-        ("-2 + 3", -2 + 3),
-        ("5 + (-2)", 5 + (-2)),
-        ("5 * -2", 5 * -2),
-        ("-1 - -2", -1 - -2),
-        ("-1 - 2", -1 - 2),
-        ("4 - 5", 4 - 5),
-        ("1 - 2", 1 - 2),
-        ("3 - ((8 + 3) * -2)", 3 - ((8 + 3) * -2)),
-        ("2.01e2 - 200", 2.01e2 - 200),
-        ("2*3*4", 2 * 3 * 4),
-        ("2 + 3 + 4 * 3 * 2 + 2", 2 + 3 + 4 * 3 * 2 * 2),
-        ("10 + 11", 10 + 11),
-        ("2 ^ 3", math.pow(2, 3)),
-        ("3 * 3 ^ 2" ,3 * math.pow(3, 2)),
-        ("2 ^ 2 + 3", math.pow(2, 2) + 3),
-        ("2 ^ (2 + 3)", math.pow(2, 5)),
-        ("cos(10)", math.cos(10)),
-        ("sin(20)", math.sin(20)),
-        ("tan(30)", math.tan(30)),
-        ("3 * cos(10)", 3* math.cos(10)),
-        ("sin(20) + 15", math.sin(20) + 15),
-        ("tan(30) + sin(20)", math.tan(30) + math.sin(20)),
-        ("tan(sin(2^3)) + sin(20)", math.tan(math.sin(math.pow(2, 3))) + math.sin(20)),
-        ("log(20) + 15", math.log(20) + 15),
-        ("log(160)", math.log(160))
+        ("abcd = 2", True)
+        # ("2 * 3", 2 * 3),
+        # ("5 / 4", 5 / 4),
+        # ("2 * 3 + 1", 2 * 3 + 1),
+        # ("1 + 2 * 3", 1 + 2 * 3),
+        # ("(2 * 3) + 1", (2 * 3) + 1),
+        # ("2 * (3 + 1)", 2 * (3 + 1)),
+        # ("(2 + 1) * 3", (2 + 1) * 3),
+        # ("-2 + 3", -2 + 3),
+        # ("5 + (-2)", 5 + (-2)),
+        # ("5 * -2", 5 * -2),
+        # ("-1 - -2", -1 - -2),
+        # ("-1 - 2", -1 - 2),
+        # ("4 - 5", 4 - 5),
+        # ("1 - 2", 1 - 2),
+        # ("3 - ((8 + 3) * -2)", 3 - ((8 + 3) * -2)),
+        # ("2.01e2 - 200", 2.01e2 - 200),
+        # ("2*3*4", 2 * 3 * 4),
+        # ("2 + 3 + 4 * 3 * 2 + 2", 2 + 3 + 4 * 3 * 2 * 2),
+        # ("10 + 11", 10 + 11),
+        # ("2 ^ 3", math.pow(2, 3)),
+        # ("3 * 3 ^ 2" ,3 * math.pow(3, 2)),
+        # ("2 ^ 2 + 3", math.pow(2, 2) + 3),
+        # ("2 ^ (2 + 3)", math.pow(2, 5)),
+        # ("cos(10)", math.cos(10)),
+        # ("sin(20)", math.sin(20)),
+        # ("tan(30)", math.tan(30)),
+        # ("3 * cos(10)", 3* math.cos(10)),
+        # ("sin(20) + 15", math.sin(20) + 15),
+        # ("tan(30) + sin(20)", math.tan(30) + math.sin(20)),
+        # ("tan(sin(2^3)) + sin(20)", math.tan(math.sin(math.pow(2, 3))) + math.sin(20)),
+        # ("log(20) + 15", math.log(20) + 15),
+        # ("log(160)", math.log(160))
     ]
     for expression, expected in expressions:
         result = "PASS" if parse(expression) == expected else "FAIL"
