@@ -7,9 +7,12 @@
 #
 # E = TE'
 # E' = +TE' | - TE' | &
-# T = FT'
-# T' = * FT' | / FT' | &
-# F = ( E ) | num
+# T = PT'
+# T' = * PT' | / PT' | &
+# P = FP'
+# P' = ^ FP' | &
+# F = ( E ) | num | idF'
+# F' = (E) | &
 # num = [+-]?([0-9]+(.[0-9]+)?|.[0-9]+)(e[0-9]+)+)?)
 
 import math
@@ -35,10 +38,13 @@ class Lexer:
     OPERATOR = 3
     NUM = 4
     FUNC = 5
+    IDENTIFIER = 6
     
-    _symbol_table = { 
+    symbol_table = { 
         "sin": Symbol(math.sin, FUNC),
-        "cos": Symbol(math.cos, FUNC)
+        "cos": Symbol(math.cos, FUNC),
+        "tan": Symbol(math.tan, FUNC),
+        "log": Symbol(math.log, FUNC)
     }
 
     def __init__(self, data):
@@ -47,6 +53,7 @@ class Lexer:
         self.current = 0
         self.previous = -1
         self.num_re = re.compile(r"[+-]?(\d+(\.\d*)?|\.\d+)(e\d+)?")
+        self.id_re = re.compile(r"[a-zA-Z][a-zA-Z]*")
 
     def __iter__(self):
         """Start the lexer iterator."""
@@ -82,6 +89,23 @@ class Lexer:
             # Do not handle minus operator.
             if char in "+/*^":
                 return (Lexer.OPERATOR, char, current)
+            
+            if self.id_re.match(char):
+                char_concat = char
+                char = self.data[current]
+                while self.id_re.match(char):                    
+                    char_concat += char
+                    current += 1
+                    char = self.data[current]
+                try:
+                    symbol = self.symbol_table[char_concat] 
+                    return (symbol.type, symbol.value, current)
+                except Exception:
+                    raise Exception(
+                    f"Symbol not defined at {current}: "
+                    f"{self.data[current - 1:current + 10]}"
+                )
+                    
             match = self.num_re.match(self.data[current - 1 :])
             if match is None:
                 # If there is no match we may have a minus operator
@@ -210,7 +234,35 @@ def parse_F(data):
     if token == Lexer.NUM:
         # F -> num   { $0 = float(num) }
         return float(value)
+    if token == Lexer.IDENTIFIER or Lexer.FUNC:
+        F_PRIME = parse_F_prime(data)
+        if token == Lexer.FUNC:
+            return value(F_PRIME)
+        else:
+            return value
     raise data.error(f"Unexpected token: {value}.")
+
+
+def parse_F_prime(data):
+    try:
+        token, operator = next(data)
+    except StopIteration:
+        return 1
+    if token == Lexer.OPEN_PAR:
+        # F -> (E)  { $0 = E }
+        E = parse_E(data)
+        try:
+            if next(data) != (Lexer.CLOSE_PAR, ")"):
+                data.error("Unbalanced parenthesis.")
+        except StopIteration:
+            data.error("Unbalanced parenthesis.")
+        return E
+    
+    if token not in [Lexer.OPEN_PAR]:
+        data.error(f"Invalid character: {operator}")
+
+    data.put_back()
+    return 1
 
 
 def parse(source_code):
@@ -221,7 +273,6 @@ def parse(source_code):
 
 if __name__ == "__main__":
     expressions = [
-        ("1 + 1", 1 + 1),
         ("2 * 3", 2 * 3),
         ("5 / 4", 5 / 4),
         ("2 * 3 + 1", 2 * 3 + 1),
@@ -244,21 +295,17 @@ if __name__ == "__main__":
         ("2 ^ 3", math.pow(2, 3)),
         ("3 * 3 ^ 2" ,3 * math.pow(3, 2)),
         ("2 ^ 2 + 3", math.pow(2, 2) + 3),
+        ("2 ^ (2 + 3)", math.pow(2, 5)),
+        ("cos(10)", math.cos(10)),
+        ("sin(20)", math.sin(20)),
+        ("tan(30)", math.tan(30)),
+        ("3 * cos(10)", 3* math.cos(10)),
+        ("sin(20) + 15", math.sin(20) + 15),
+        ("tan(30) + sin(20)", math.tan(30) + math.sin(20)),
+        ("tan(sin(2^3)) + sin(20)", math.tan(math.sin(math.pow(2, 3))) + math.sin(20)),
+        ("log(20) + 15", math.log(20) + 15),
+        ("log(160)", math.log(160))
     ]
-    print(math.pow(14,0))
     for expression, expected in expressions:
         result = "PASS" if parse(expression) == expected else "FAIL"
         print(f"Expression: {expression} - {result}")
-"""
-    try:
-        print("Expression: 1 1 1")
-        print(parse("1 1 1"))
-    except ParserError as perr:
-        print(perr)
-
-    try:
-        print("Expression: (1")
-        print(parse("(1"))
-    except ParserError as perr:
-        print(perr)
-"""
