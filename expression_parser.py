@@ -153,18 +153,6 @@ symbol_table = {
 }
 
 
-def parse_C(data):
-    S = parse_S(data)
-    C_prime = parse_C_prime(data)
-    return S
-
-
-def parse_C_prime(data):
-    S = parse_S(data)
-    C_prime = parse_C_prime(data)
-    return S    
-
-
 def parse_S(data):
     try:
         last_current = data.current
