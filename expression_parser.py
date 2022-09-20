@@ -5,8 +5,6 @@
 
 # Language definition:
 #
-# P = SP'
-# P' = SP' | &
 # S = A | E
 # A = id = E
 # E = TE'
